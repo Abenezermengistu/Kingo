@@ -1,6 +1,3 @@
-import os
-from django.core.wsgi import get_wsgi_application
+from kingo.wsgi import application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kingo.settings')
-
-application = get_wsgi_application()
+app = application
