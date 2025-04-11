@@ -4,7 +4,7 @@
       {
         "src": "kingo/wsgi.py",
         "use": "@vercel/python",
-        "config": {"maxlambdaSize": "15mb", "runtime": "python3.12.2"}
+        "config": {"maxlambdaSize": "15mb", "runtime": "python3.9"}
       }],
     "routes": [
       {
