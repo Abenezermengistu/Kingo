@@ -156,34 +156,49 @@
         let selectedBoardNumber = null;
     
         function selectBoardNumber(element, number) {
-            document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
-            element.classList.add('selected');
-            selectedBoardNumber = number;
-    
-            const preview = document.getElementById("bingoCardPreview");
-            preview.innerHTML = '';
-            preview.style.display = 'block';
-    
-            const card = bingoCards[number];
-            card.forEach(row => {
-                const rowDiv = document.createElement("div");
-                rowDiv.className = "bingo-card-row";
-                row.forEach(cell => {
-                    const cellDiv = document.createElement("div");
-                    cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
-                    cellDiv.textContent = cell;
-                    rowDiv.appendChild(cellDiv);
-                });
-                preview.appendChild(rowDiv);
-            });
-    
-            document.getElementById("startGameBtn").disabled = false;
-        }
+    document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    selectedBoardNumber = number;
+
+    const preview = document.getElementById("bingoCardPreview");
+    preview.innerHTML = '';
+    preview.style.display = 'block';
+
+    const card = bingoCards[number];
+
+    // 🔹 Save to localStorage so board.html can use it
+    localStorage.setItem(`bingoCard_${number}`, JSON.stringify(card));
+
+    card.forEach(row => {
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "bingo-card-row";
+        row.forEach(cell => {
+            const cellDiv = document.createElement("div");
+            cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
+            cellDiv.textContent = cell;
+            rowDiv.appendChild(cellDiv);
+        });
+        preview.appendChild(rowDiv);
+    });
+
+    document.getElementById("startGameBtn").disabled = false;
+}
+
     
         document.getElementById("startGameBtn").addEventListener("click", () => {
             if (!selectedBoardNumber) return;
-            window.location.href = `/board/?board=${selectedBoardNumber}&wallet={{ wallet }}&stake={{ stake }}&user_id={{ user_id }}`;
+        
+            fetch(`/save_card/?board=${selectedBoardNumber}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        window.location.href = `/board/?board=${selectedBoardNumber}&wallet={{ wallet }}&stake={{ stake }}&user_id={{ user_id }}`;
+                    } else {
+                        alert("Failed to start game. Try again.");
+                    }
+                });
         });
     </script>
+    
 </body>
 </html>

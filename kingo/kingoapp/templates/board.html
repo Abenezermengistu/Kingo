@@ -477,199 +477,139 @@
         document.addEventListener("DOMContentLoaded", () => {
             const urlParams = new URLSearchParams(window.location.search);
             const boardNumber = urlParams.get("board") || "unknown";
-            const userId = urlParams.get("user_id") || null; // Extract Telegram user_id
+            const userId = urlParams.get("user_id") || null;
+            const stakedAmount = urlParams.get("stakedAmount");
+            const betAmount = parseInt(localStorage.getItem("betAmount")) || 10;
+    
             const bingoGrid = document.getElementById("bingoGrid");
             const boardDisplay = document.getElementById("boardNumberDisplay");
             const gameInfo = document.querySelector(".game-info");
-            const fullGrid = document.querySelectorAll(".grid-number");
-
-            // Stats elements
-            const derashStat = document.querySelector(".stat-item:nth-child(1)"); // Derash
-            const bonusStat = document.querySelector(".stat-item:nth-child(2)"); // Bonus
-            const playersStat = document.querySelector(".stat-item:nth-child(3)"); // Players
-            const betStat = document.querySelector(".stat-item:nth-child(4)"); // Bet
-            const callStat = document.querySelector(".stat-item:nth-child(5)"); // Call
-
-           
-            const stakedAmount = urlParams.get("stakedAmount");
-
-            // Update the staked amount element if it exists
+            const fullGrid = document.querySelectorAll(".full-grid .grid-number");
+    
+            const derashStat = document.querySelector(".stat-item:nth-child(1)");
+            const bonusStat = document.querySelector(".stat-item:nth-child(2)");
+            const playersStat = document.querySelector(".stat-item:nth-child(3)");
+            const betStat = document.querySelector(".stat-item:nth-child(4)");
+            const callStat = document.querySelector(".stat-item:nth-child(5)");
+    
             const stakedAmountElement = document.getElementById("stakedAmount");
             if (stakedAmountElement) {
-                stakedAmountElement.innerText = `$${stakedAmount}`; // Use template literals correctly
-            } else {
-                console.warn("Element with id 'stakedAmount' not found.");
+                stakedAmountElement.innerText = `$${stakedAmount}`;
             }
-
-            // Retrieve or set default bet amount
-            let betAmount = parseInt(localStorage.getItem("betAmount"));
-            let playersInGame = new Set(); // Use a Set to track unique players
-            let calledNumbers = new Set();
-
-            if (boardDisplay) {
-                boardDisplay.textContent = `Board number: ${boardNumber}`;
-            } else {
-                console.warn("boardNumberDisplay element not found.");
+    
+            const playersInGame = new Set();
+            const calledNumbers = new Set();
+    
+            if (userId) {
+                playersInGame.add(userId);
             }
-
-            try {
-                const bingoCardData = getBingoCardData(boardNumber);
-
-                if (bingoCardData) {
-                    bingoGrid.innerHTML = ""; // Clear existing content
-
-                    const columnHeaders = [
-                        { letter: 'B', colorClass: 'column-b' },
-                        { letter: 'I', colorClass: 'column-i' },
-                        { letter: 'N', colorClass: 'column-n' },
-                        { letter: 'G', colorClass: 'column-g' },
-                        { letter: 'O', colorClass: 'column-o' }
-                    ];
-
-                    // Create headers
-                    columnHeaders.forEach(header => {
-                        const headerElement = document.createElement("div");
-                        headerElement.classList.add("column-header", header.colorClass);
-                        headerElement.textContent = header.letter;
-                        bingoGrid.appendChild(headerElement);
-                    });
-
-                    // Create bingo cells
-                    bingoCardData.forEach(row => {
-                        row.forEach(cellValue => {
-                            const cell = document.createElement("div");
-                            cell.classList.add("cell");
-                            cell.textContent = cellValue;
-                            bingoGrid.appendChild(cell);
-
-                            if (cellValue === "FREE") {
-                                cell.classList.add("free");
-                            }
-
-                            // User manually marks their own grid
-                            cell.addEventListener("click", () => {
-                                cell.classList.toggle("marked");
-                            });
-                        });
-                    });
+    
+            const callBall = document.createElement("span");
+            callBall.classList.add("call-ball");
+            callBall.textContent = "-";
+            gameInfo.innerHTML = `Count Down: Will start in 3 sec<br>Current Call: `;
+            gameInfo.appendChild(callBall);
+    
+            const bingoCardData = getBingoCardData(boardNumber);
+            if (bingoCardData) renderBingoGrid(bingoCardData);
+    
+            updateStats();
+            updateCountdown();
+    
+            const callInterval = setInterval(callNumber, 5000);
+            const playerJoinInterval = setInterval(() => {
+                if (playersInGame.size < 3) {
+                    playersInGame.add(Math.floor(Math.random() * 10000));
+                    updateCountdown();
+                    updateStats();
                 } else {
-                    bingoGrid.innerHTML = `<p>No bingo card data found for board number ${boardNumber}.</p>`;
+                    clearInterval(playerJoinInterval);
                 }
-            } catch (error) {
-                console.error("Error generating bingo grid:", error);
-                bingoGrid.innerHTML = "<p>Error generating bingo grid.</p>";
+            }, 2000);
+    
+            function updateCountdown() {
+                const countdownText = playersInGame.size >= 3 ? "Started" : "Starting...";
+                gameInfo.innerHTML = `Count Down: ${countdownText}<br>Current Call: `;
+                gameInfo.appendChild(callBall);
             }
-
-            // Function to get or generate bingo card
+    
+            function updateStats() {
+                derashStat.innerHTML = `Derash<br>$${playersInGame.size * betAmount}`;
+                playersStat.innerHTML = `Players<br>${playersInGame.size}`;
+                betStat.innerHTML = `Bet<br>$${betAmount}`;
+                callStat.innerHTML = `Call<br>${calledNumbers.size}`;
+            }
+    
+            function callNumber() {
+                if (calledNumbers.size >= 75) return;
+    
+                let number;
+                do {
+                    number = Math.floor(Math.random() * 75) + 1;
+                } while (calledNumbers.has(number));
+    
+                calledNumbers.add(number);
+    
+                const letters = ["B", "I", "N", "G", "O"];
+                const column = Math.floor((number - 1) / 15);
+                const callText = `${letters[column]}${number}`;
+                callBall.textContent = callText;
+    
+                // Mark number in the full grid, not user card
+                fullGrid.forEach(cell => {
+                    if (parseInt(cell.textContent) === number) {
+                        cell.classList.add("marked");
+                    }
+                });
+    
+                updateStats();
+            }
+    
             function getBingoCardData(boardNumber) {
                 const storedCard = localStorage.getItem(`bingoCard_${boardNumber}`);
                 if (storedCard) {
                     return JSON.parse(storedCard);
                 } else {
-                    console.log("Generating new bingo card");
-                    const newCard = generateBingoCard();
-                    localStorage.setItem(`bingoCard_${boardNumber}`, JSON.stringify(newCard));
-                    return newCard;
+                    alert("No saved bingo card found. Please select a card again.");
+                    window.location.href = "/";
+                    return null;
                 }
             }
-
-
-            // Generate bingo card (Dummy Data)
-            function generateBingoCard() {
-                return [
-                    [3, 18, 31, 47, 62],
-                    [6, 20, 36, 49, 68],
-                    [8, 24, "FREE", 53, 70],
-                    [10, 25, 40, 56, 72],
-                    [11, 27, 44, 60, 74]
+    
+            function renderBingoGrid(data) {
+                bingoGrid.innerHTML = "";
+                const columnHeaders = [
+                    { letter: 'B', colorClass: 'column-b' },
+                    { letter: 'I', colorClass: 'column-i' },
+                    { letter: 'N', colorClass: 'column-n' },
+                    { letter: 'G', colorClass: 'column-g' },
+                    { letter: 'O', colorClass: 'column-o' }
                 ];
-            }
-
-            // Create the ball element once
-            const callBall = document.createElement("span");
-            callBall.classList.add("call-ball");
-            callBall.textContent = "-";
-            gameInfo.innerHTML = `Count Down: Will start in a 3 sec<br>Current Call: `;
-            gameInfo.appendChild(callBall);
-
-            // Add the user to the game if they have a user_id
-            if (userId) {
-                playersInGame.add(userId);
-            }
-
-            // Update stats display
-            function updateStats() {
-                derashStat.innerHTML = `Derash<br>${playersInGame.size * betAmount}$`;
-                playersStat.innerHTML = `Players<br>${playersInGame.size}`;
-                betStat.innerHTML = `Bet<br>${betAmount}$`;
-                callStat.innerHTML = `Call<br>${calledNumbers.size}`;
-            }
-
-            updateStats(); // Initial stats update
-
-            // Function to update countdown message
-            function updateCountdown() {
-                const countdownText = playersInGame >= 3 ? "Started" : "Starting...";
-                gameInfo.innerHTML = `Count Down: ${countdownText}<br>Current Call: `;
-                gameInfo.appendChild(callBall); // Keep the ball visible
-            }
-
-            // Function to pick a random Bingo number
-            function callNumber() {
-                if (calledNumbers.size === 75) return; // Stop if all numbers are called
-
-                let number;
-                do {
-                    number = Math.floor(Math.random() * 75) + 1;
-                } while (calledNumbers.has(number));
-
-                calledNumbers.add(number);
-
-                // Determine the letter (B, I, N, G, O)
-                const letters = ["B", "I", "N", "G", "O"];
-                const column = Math.floor((number - 1) / 15);
-                const callText = `${letters[column]}${number}`;
-
-                // Update the ball's text instead of removing it
-                callBall.textContent = callText;
-
-                // Mark the number in the grid
-                fullGrid.forEach(cell => {
-                    if (cell.textContent == number) {
-                        cell.classList.add("marked");
-                    }
+    
+                columnHeaders.forEach(header => {
+                    const headerElement = document.createElement("div");
+                    headerElement.classList.add("column-header", header.colorClass);
+                    headerElement.textContent = header.letter;
+                    bingoGrid.appendChild(headerElement);
+                });
+    
+                data.forEach(row => {
+                    row.forEach(cellValue => {
+                        const cell = document.createElement("div");
+                        cell.classList.add("cell");
+                        cell.textContent = cellValue;
+                        if (cellValue === "FREE") cell.classList.add("free");
+                        cell.addEventListener("click", () => {
+                            cell.classList.toggle("marked");
+                        });
+                        bingoGrid.appendChild(cell);
+                    });
                 });
             }
-
-            // Simulate a new number being called every 5 seconds
-            setInterval(callNumber, 5000);
-
-            // Simulate players joining
-            setInterval(() => {
-                if (playersInGame < 3) {
-                    playersInGame++;
-                    updateCountdown();
-                }
-            }, 2000);
-
-            // Initial state
-            updateCountdown();
         });
     </script>
-
-    <script>
-        // Function to get query parameters from the URL
-        function getQueryParam(param) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(param);
-        }
-
-        // Get the stake value from the URL
-        const stake = getQueryParam("stake") || 0;
-
-        // Display the stake amount
-        document.getElementById("bet-amount").textContent = stake;
-    </script>
+    
+  
 
 </body>
 

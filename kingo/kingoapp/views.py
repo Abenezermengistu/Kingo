@@ -57,32 +57,46 @@ def bingo_index(request):
         'sample_card': sample_card
     }
     return render(request, 'index.html', context)
+from django.shortcuts import render
+import uuid  # Import the uuid module
+from .models import BingoBoard, GameSession, Player  # Import your models
 
-@login_required
 def board_view(request):
     board_number = int(request.GET.get('board'))
     wallet = request.GET.get('wallet')
-    stake = int(request.GET.get('stake', 10))  # Default stake to 10 if not provided
-    user = request.user
+    stake = int(request.GET.get('stake', 10))
 
-    # Create board in DB if it doesn't exist
+    user_id = request.session.get('user_id')
+    if not user_id:
+        user_id = str(uuid.uuid4())
+        request.session['user_id'] = user_id
+
     board, _ = BingoBoard.objects.get_or_create(board_number=board_number)
-
-    # Create GameSession if not exists
     game_session, created = GameSession.objects.get_or_create(board=board, defaults={'bet_amount': stake})
 
-    # Link user to board via Player model if not already joined
-    Player.objects.get_or_create(user=user, board=board)
+    Player.objects.get_or_create(user_identifier=user_id, board=board)  # Use user_identifier!
 
-    # Fetch bingo card from session
     bingo_card = request.session.get(f'bingo_card_{board_number}')
 
     context = {
         'board': board_number,
         'wallet': wallet,
         'stake': stake,
-        'user_id': user.id,
+        'user_id': user_id,  # Keep sending this for client-side logic
         'bingo_card': bingo_card,
-        'game_id': game_session.id  # 🔥 Include the GameSession ID
+        'game_id': game_session.id
     }
     return render(request, 'board.html', context)
+
+# views.py
+from django.http import JsonResponse
+
+def save_selected_bingo_card(request):
+    board_number = request.GET.get('board')
+    all_cards = request.session.get('bingo_cards', {})
+    selected_card = all_cards.get(board_number)
+
+    if selected_card:
+        request.session[f'bingo_card_{board_number}'] = selected_card
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error'}, status=400)

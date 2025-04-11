@@ -18,13 +18,19 @@ class BingoBoard(models.Model):
     def __str__(self):
         return f"Board {self.board_number}"
 
+import uuid
+
 class Player(models.Model):
-    user = models.ForeignKey(UserCustom, on_delete=models.CASCADE)
+    user_identifier = models.CharField(
+        max_length=255,
+        default=uuid.uuid4,  # Automatically generate a UUID for new records
+        unique=False  # Keep as False unless you're sure it should be unique globally
+    )
     board = models.ForeignKey(BingoBoard, on_delete=models.CASCADE, related_name="players")
     joined_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.user.username} - Board {self.board.board_number}"
+    class Meta:
+        unique_together = ('user_identifier', 'board')
 
 class GameSession(models.Model):
     board = models.OneToOneField(BingoBoard, on_delete=models.CASCADE)
