@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bingo Board</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #fff;
+            padding: 5px;
+        }
+
+        .bingo-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 30px);
+            justify-content: center;
+            margin-top: 10px;
+            gap: 5px;
+        }
+
+        .cell {
+            width: 32px;
+            height: 30px;
+            background: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .cell.marked {
+            background-color: #f44336;
+            color: white;
+            font-weight: bold;
+        }
+
+        .cell.free {
+            background-color: #888;
+            color: white;
+            font-style: italic;
+            cursor: default;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            background: white;
+            padding: 8px;
+            border: 1px solid red;
+            border-radius: 6px;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: red;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(5, 0.5fr);
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+            background: #ffe6e6;
+            padding: 3px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid red;
+            line-height: 1.2;
+        }
+
+        .main {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .left-column {
+            flex: 2;
+            min-width: 300px;
+        }
+
+        .right-column {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .game-info {
+            background: #fff0f0;
+            padding: 6px;
+            margin-bottom: 8px;
+            border: 1px solid red;
+            border-radius: 4px;
+            font-size: 11px;
+            color: red;
+            text-align: center;
+        }
+
+        .call-ball {
+            display: inline-block;
+            width: 60px;
+            /* Adjusted width */
+            height: 60px;
+            /* Adjusted height */
+            line-height: 60px;
+            /* Adjusted line height */
+            border-radius: 50%;
+            background-color: #f0f0f0;
+            /* Light gray background (or yellow) */
+            border: 3px solid red;
+            /* Define red border as specified */
+            color: black;
+            /* Black font color as specified */
+            font-size: 1.3em;
+            /* Adjusted font size */
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+            /* Add a subtle shadow */
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+            /* subtle highlight */
+            animation: pop 0.3s ease-in-out;
+        }
+
+        @keyframes pop {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+
+
+        @keyframes pop {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .grid-number.marked {
+            background-color: yellow;
+            font-weight: bold;
+        }
+
+
+        .column-header,
+        .cell {
+            text-align: center;
+            padding: 6px;
+            font-weight: bold;
+            background: white;
+            min-height: 30px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid red;
+        }
+
+        /* Base column header style */
+        .column-header {
+            text-align: center;
+            font-weight: bold;
+            padding: 5px;
+            color: white;
+            border: 1px solid red;
+        }
+
+        /* Specific colors for each column */
+        .column-b {
+            background-color: orange;
+        }
+
+        .column-i {
+            background-color: green;
+        }
+
+        .column-n {
+            background-color: blue;
+        }
+
+        .column-g {
+            background-color: purple;
+        }
+
+        .column-o {
+            background-color: red;
+        }
+
+        .free {
+            background: #ffdede;
+            color: red;
+            font-weight: bold;
+        }
+
+        .board-number-display {
+            text-align: center;
+            margin: 6px 0;
+            font-weight: bold;
+            color: red;
+            font-size: 12px;
+        }
+
+        .bingo-message {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid red;
+            background: white;
+            color: red;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            display: grid;
+            /* Add this line */
+            place-items: center;
+            /* Add this line */
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .controls button {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid red;
+            background: white;
+            color: red;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .full-grid {
+            border: 1px solid red;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .grid-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1px;
+            background: red;
+        }
+
+        .grid-number {
+            text-align: center;
+            padding: 4px;
+            font-size: 10px;
+            background: white;
+            min-height: 22px;
+            border: 1px solid red;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .grid-header .grid-number {
+            background: red;
+            color: white;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 6px;
+        }
+
+        @media (max-width: 600px) {
+            .main {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">Game ID: <span id="gameId">{{ game_id }}</span></div>
+
+        <div class="stats-container">
+            <div class="stat-item">Derash<br>-</div>
+            <div class="stat-item">Bonus<br>-</div>
+            <div class="stat-item">Players<br>-</div>
+            <div class="stat-item">Bet<br>{{ stake }}</div>
+            <div class="stat-item">Call<br>0</div>
+        </div>
+
+        <div class="main">
+            <!-- LEFT COLUMN -->
+            <div class="left-column">
+                <div class="full-grid">
+                    <div class="grid-row grid-header">
+                        <div class="grid-number" style="background-color: orange;">B</div>
+                        <div class="grid-number" style="background-color: green;">I</div>
+                        <div class="grid-number" style="background-color: blue;">N</div>
+                        <div class="grid-number" style="background-color: purple;">G</div>
+                        <div class="grid-number">O</div>
+                    </div>
+                    <!-- Grid rows (1 to 75) -->
+                    <div class="grid-row">
+                        <div class="grid-number">1</div>
+                        <div class="grid-number">16</div>
+                        <div class="grid-number">31</div>
+                        <div class="grid-number">46</div>
+                        <div class="grid-number">61</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">2</div>
+                        <div class="grid-number">17</div>
+                        <div class="grid-number">32</div>
+                        <div class="grid-number">47</div>
+                        <div class="grid-number">62</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">3</div>
+                        <div class="grid-number">18</div>
+                        <div class="grid-number">33</div>
+                        <div class="grid-number">48</div>
+                        <div class="grid-number">63</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">4</div>
+                        <div class="grid-number">19</div>
+                        <div class="grid-number">34</div>
+                        <div class="grid-number">49</div>
+                        <div class="grid-number">64</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">5</div>
+                        <div class="grid-number">20</div>
+                        <div class="grid-number">35</div>
+                        <div class="grid-number">50</div>
+                        <div class="grid-number">65</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">6</div>
+                        <div class="grid-number">21</div>
+                        <div class="grid-number">36</div>
+                        <div class="grid-number">51</div>
+                        <div class="grid-number">66</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">7</div>
+                        <div class="grid-number">22</div>
+                        <div class="grid-number">37</div>
+                        <div class="grid-number">52</div>
+                        <div class="grid-number">67</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">8</div>
+                        <div class="grid-number">23</div>
+                        <div class="grid-number">38</div>
+                        <div class="grid-number">53</div>
+                        <div class="grid-number">68</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">9</div>
+                        <div class="grid-number">24</div>
+                        <div class="grid-number">39</div>
+                        <div class="grid-number">54</div>
+                        <div class="grid-number">69</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">10</div>
+                        <div class="grid-number">25</div>
+                        <div class="grid-number">40</div>
+                        <div class="grid-number">55</div>
+                        <div class="grid-number">70</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">11</div>
+                        <div class="grid-number">26</div>
+                        <div class="grid-number">41</div>
+                        <div class="grid-number">56</div>
+                        <div class="grid-number">71</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">12</div>
+                        <div class="grid-number">27</div>
+                        <div class="grid-number">42</div>
+                        <div class="grid-number">57</div>
+                        <div class="grid-number">72</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">13</div>
+                        <div class="grid-number">28</div>
+                        <div class="grid-number">43</div>
+                        <div class="grid-number">58</div>
+                        <div class="grid-number">73</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">14</div>
+                        <div class="grid-number">29</div>
+                        <div class="grid-number">44</div>
+                        <div class="grid-number">59</div>
+                        <div class="grid-number">74</div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-number">15</div>
+                        <div class="grid-number">30</div>
+                        <div class="grid-number">45</div>
+                        <div class="grid-number">60</div>
+                        <div class="grid-number">75</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="right-column">
+                <div class="bingo-card">
+                    <div class="game-info">
+                        Current Call: -
+                    </div>
+
+                    <div class="bingo-grid" id="bingoGrid">
+                        <div class="column-header column-b">B</div>
+                        <div class="column-header column-i">I</div>
+                        <div class="column-header column-n">N</div>
+                        <div class="column-header column-g">G</div>
+                        <div class="column-header column-o">O</div>
+                    
+                        {% for row in bingo_card %}
+                            {% for num in row %}
+                                <div class="grid-cell {% if num == 'FREE' %}free-cell{% endif %}">{{ num }}</div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="board-number-display" id="boardNumberDisplay">
+                        Board number: {{ board }}
+                    </div>
+
+                    <div class="bingo-message">BINGO!</div>
+
+                    <div class="controls">
+                        <button onclick="window.location.reload()">Refresh</button>
+                        <button onclick="window.location.href='/'">Leave</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    &rsqb;
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const boardNumber = urlParams.get("board") || "unknown";
+            const userId = urlParams.get("user_id") || null; // Extract Telegram user_id
+            const bingoGrid = document.getElementById("bingoGrid");
+            const boardDisplay = document.getElementById("boardNumberDisplay");
+            const gameInfo = document.querySelector(".game-info");
+            const fullGrid = document.querySelectorAll(".grid-number");
+
+            // Stats elements
+            const derashStat = document.querySelector(".stat-item:nth-child(1)"); // Derash
+            const bonusStat = document.querySelector(".stat-item:nth-child(2)"); // Bonus
+            const playersStat = document.querySelector(".stat-item:nth-child(3)"); // Players
+            const betStat = document.querySelector(".stat-item:nth-child(4)"); // Bet
+            const callStat = document.querySelector(".stat-item:nth-child(5)"); // Call
+
+           
+            const stakedAmount = urlParams.get("stakedAmount");
+
+            // Update the staked amount element if it exists
+            const stakedAmountElement = document.getElementById("stakedAmount");
+            if (stakedAmountElement) {
+                stakedAmountElement.innerText = `$${stakedAmount}`; // Use template literals correctly
+            } else {
+                console.warn("Element with id 'stakedAmount' not found.");
+            }
+
+            // Retrieve or set default bet amount
+            let betAmount = parseInt(localStorage.getItem("betAmount"));
+            let playersInGame = new Set(); // Use a Set to track unique players
+            let calledNumbers = new Set();
+
+            if (boardDisplay) {
+                boardDisplay.textContent = `Board number: ${boardNumber}`;
+            } else {
+                console.warn("boardNumberDisplay element not found.");
+            }
+
+            try {
+                const bingoCardData = getBingoCardData(boardNumber);
+
+                if (bingoCardData) {
+                    bingoGrid.innerHTML = ""; // Clear existing content
+
+                    const columnHeaders = [
+                        { letter: 'B', colorClass: 'column-b' },
+                        { letter: 'I', colorClass: 'column-i' },
+                        { letter: 'N', colorClass: 'column-n' },
+                        { letter: 'G', colorClass: 'column-g' },
+                        { letter: 'O', colorClass: 'column-o' }
+                    ];
+
+                    // Create headers
+                    columnHeaders.forEach(header => {
+                        const headerElement = document.createElement("div");
+                        headerElement.classList.add("column-header", header.colorClass);
+                        headerElement.textContent = header.letter;
+                        bingoGrid.appendChild(headerElement);
+                    });
+
+                    // Create bingo cells
+                    bingoCardData.forEach(row => {
+                        row.forEach(cellValue => {
+                            const cell = document.createElement("div");
+                            cell.classList.add("cell");
+                            cell.textContent = cellValue;
+                            bingoGrid.appendChild(cell);
+
+                            if (cellValue === "FREE") {
+                                cell.classList.add("free");
+                            }
+
+                            // User manually marks their own grid
+                            cell.addEventListener("click", () => {
+                                cell.classList.toggle("marked");
+                            });
+                        });
+                    });
+                } else {
+                    bingoGrid.innerHTML = `<p>No bingo card data found for board number ${boardNumber}.</p>`;
+                }
+            } catch (error) {
+                console.error("Error generating bingo grid:", error);
+                bingoGrid.innerHTML = "<p>Error generating bingo grid.</p>";
+            }
+
+            // Function to get or generate bingo card
+            function getBingoCardData(boardNumber) {
+                const storedCard = localStorage.getItem(`bingoCard_${boardNumber}`);
+                if (storedCard) {
+                    return JSON.parse(storedCard);
+                } else {
+                    console.log("Generating new bingo card");
+                    const newCard = generateBingoCard();
+                    localStorage.setItem(`bingoCard_${boardNumber}`, JSON.stringify(newCard));
+                    return newCard;
+                }
+            }
+
+
+            // Generate bingo card (Dummy Data)
+            function generateBingoCard() {
+                return [
+                    [3, 18, 31, 47, 62],
+                    [6, 20, 36, 49, 68],
+                    [8, 24, "FREE", 53, 70],
+                    [10, 25, 40, 56, 72],
+                    [11, 27, 44, 60, 74]
+                ];
+            }
+
+            // Create the ball element once
+            const callBall = document.createElement("span");
+            callBall.classList.add("call-ball");
+            callBall.textContent = "-";
+            gameInfo.innerHTML = `Count Down: Will start in a 3 sec<br>Current Call: `;
+            gameInfo.appendChild(callBall);
+
+            // Add the user to the game if they have a user_id
+            if (userId) {
+                playersInGame.add(userId);
+            }
+
+            // Update stats display
+            function updateStats() {
+                derashStat.innerHTML = `Derash<br>${playersInGame.size * betAmount}$`;
+                playersStat.innerHTML = `Players<br>${playersInGame.size}`;
+                betStat.innerHTML = `Bet<br>${betAmount}$`;
+                callStat.innerHTML = `Call<br>${calledNumbers.size}`;
+            }
+
+            updateStats(); // Initial stats update
+
+            // Function to update countdown message
+            function updateCountdown() {
+                const countdownText = playersInGame >= 3 ? "Started" : "Starting...";
+                gameInfo.innerHTML = `Count Down: ${countdownText}<br>Current Call: `;
+                gameInfo.appendChild(callBall); // Keep the ball visible
+            }
+
+            // Function to pick a random Bingo number
+            function callNumber() {
+                if (calledNumbers.size === 75) return; // Stop if all numbers are called
+
+                let number;
+                do {
+                    number = Math.floor(Math.random() * 75) + 1;
+                } while (calledNumbers.has(number));
+
+                calledNumbers.add(number);
+
+                // Determine the letter (B, I, N, G, O)
+                const letters = ["B", "I", "N", "G", "O"];
+                const column = Math.floor((number - 1) / 15);
+                const callText = `${letters[column]}${number}`;
+
+                // Update the ball's text instead of removing it
+                callBall.textContent = callText;
+
+                // Mark the number in the grid
+                fullGrid.forEach(cell => {
+                    if (cell.textContent == number) {
+                        cell.classList.add("marked");
+                    }
+                });
+            }
+
+            // Simulate a new number being called every 5 seconds
+            setInterval(callNumber, 5000);
+
+            // Simulate players joining
+            setInterval(() => {
+                if (playersInGame < 3) {
+                    playersInGame++;
+                    updateCountdown();
+                }
+            }, 2000);
+
+            // Initial state
+            updateCountdown();
+        });
+    </script>
+
+    <script>
+        // Function to get query parameters from the URL
+        function getQueryParam(param) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(param);
+        }
+
+        // Get the stake value from the URL
+        const stake = getQueryParam("stake") || 0;
+
+        // Display the stake amount
+        document.getElementById("bet-amount").textContent = stake;
+    </script>
+
+</body>
+
+</html>
