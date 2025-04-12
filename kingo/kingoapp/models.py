@@ -2,8 +2,10 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 class UserCustom(AbstractUser):
-    phone = models.CharField(max_length=15, unique=True)
+    phone = models.CharField(max_length=15, unique=True,blank=True, null=True, default="N/A")
     joined_at = models.DateTimeField(auto_now_add=True)
+    telegram_user_id = models.CharField(max_length=100, blank=True, null=True, unique=True)
+    telegram_username = models.CharField(max_length=150, blank=True, null=True)
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Default balance
     wins = models.PositiveIntegerField(default=0)
     losses = models.PositiveIntegerField(default=0)

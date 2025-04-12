@@ -37,16 +37,26 @@ def generate_random_string(length=6):
     """Generate a random string of lowercase letters and digits."""
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
-def get_user_wallet(user_id):
-    if user_id not in wallets:
-        wallets[user_id] = {
+def get_user_wallet(telegram_user_id):
+    from kingoapp.models import UserCustom  # Adjust this import to your app name
+
+    try:
+        user = UserCustom.objects.get(telegram_user_id=telegram_user_id)
+        return {
+            'balance': float(user.balance),
+            'wins': user.wins,
+            'losses': user.losses,
+            'deposits': getattr(user, 'deposits', 0),
+            'withdrawals': getattr(user, 'withdrawals', 0),
+        }
+    except UserCustom.DoesNotExist:
+        return {
             "balance": 0,
             "wins": 0,
             "losses": 0,
             "deposits": 0,
             "withdrawals": 0,
         }
-    return wallets[user_id]
 
 # === Main Menu ===
 def build_main_menu():
@@ -82,18 +92,19 @@ def start(message):
 @bot.message_handler(commands=['register'])
 def handle_register(message):
     chat_id = message.chat.id
+    telegram_username = message.from_user.username or "N/A"  # Fallback in case it's None
     msg = bot.send_message(chat_id, "Enter your first name:")
-    bot.register_next_step_handler(msg, get_first_name)
+    bot.register_next_step_handler(msg, get_first_name, telegram_username)
 
-def get_first_name(message):
+def get_first_name(message, telegram_username):
     first_name = message.text
     msg = bot.send_message(message.chat.id, "Enter your last name:")
-    bot.register_next_step_handler(msg, get_last_name, first_name)
+    bot.register_next_step_handler(msg, get_last_name, first_name, telegram_username)
 
-def get_last_name(message, first_name):
+def get_last_name(message, first_name, telegram_username):
     last_name = message.text
     msg = bot.send_message(message.chat.id, "Please share your phone number:", reply_markup=phone_number_keyboard())
-    bot.register_next_step_handler(msg, get_phone_number, first_name, last_name)
+    bot.register_next_step_handler(msg, get_phone_number, first_name, last_name, telegram_username)
 
 def phone_number_keyboard():
     """Creates a custom keyboard for sharing phone number."""
@@ -101,23 +112,28 @@ def phone_number_keyboard():
     keyboard.add(types.KeyboardButton("Share my contact", request_contact=True))
     return keyboard
 
-def get_phone_number(message, first_name, last_name):
+def get_phone_number(message, first_name, last_name, telegram_username):
     if message.contact.user_id != message.from_user.id:
         bot.send_message(message.chat.id, "⚠️ Please share your own number.")
         return
 
     phone = message.contact.phone_number
+    telegram_user_id = message.from_user.id
     rand = generate_random_string()
 
     username = f"user_{rand}"
     email = f"{rand}@nooglefit.com"
     password = generate_random_string(10)
 
-    # Register the user
-    success, msg_text = register_user(first_name, last_name, username, email, phone, password)
+    # Register the user with extra telegram fields
+    success, msg_text = register_user(
+        first_name, last_name, username, email, phone, password,
+        telegram_user_id=telegram_user_id,
+        telegram_username=telegram_username
+    )
 
     if success:
-        registered_users.add(message.from_user.id)  # Mark the user as registered
+        registered_users.add(message.from_user.id)
         bot.send_message(
             message.chat.id,
             f"🎉 Registered successfully!\nYour username is `{username}`.\nYou can now access your account on the platform.",
@@ -203,15 +219,21 @@ def handle_query(call):
 
     elif call.data == "check_balance":
         wallet = get_user_wallet(user_id)
+    
+        if wallet is None:
+            bot.answer_callback_query(call.id, "⚠️ You're not registered yet.")
+            return
+    
         msg = (
             f"💼 *Your Wallet:*\n"
-            f"Balance: ${wallet['balance']}\n"
+            f"Balance: ${wallet['balance']:.2f}\n"
             f"Wins: {wallet['wins']}\n"
             f"Losses: {wallet['losses']}\n"
             f"Deposits: ${wallet['deposits']}\n"
             f"Withdrawals: ${wallet['withdrawals']}"
         )
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
 
     elif call.data == "deposit":
         msg = (
