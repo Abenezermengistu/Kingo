@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,7 +17,6 @@
             min-height: 100vh;
             overflow: auto;
         }
-
         .container {
             width: 100%;
             max-width: 600px;
@@ -31,7 +29,6 @@
             border: 2px solid #e74c3c;
             margin: 20px 0;
         }
-
         .header {
             display: flex;
             justify-content: space-between;
@@ -41,7 +38,6 @@
             flex-wrap: wrap;
             gap: 5px;
         }
-
         .header div {
             background-color: #e74c3c;
             padding: 5px 6px;
@@ -51,7 +47,6 @@
             min-width: 100px;
             text-align: center;
         }
-
         .board-grid {
             display: grid;
             grid-template-columns: repeat(10, 1fr);
@@ -61,7 +56,6 @@
             max-height: 400px;
             overflow-y: auto;
         }
-
         .board-number {
             background-color: #efefef;
             border: 1px solid #e74c3c;
@@ -77,17 +71,14 @@
             color: #e74c3c;
             aspect-ratio: 1;
         }
-
         .board-number.selected {
             background-color: #e74c3c;
             color: white;
             transform: scale(1.05);
         }
-
         .board-number:hover:not(.selected) {
             background-color: #ffecec;
         }
-
         .button {
             background-color: #e74c3c;
             color: white;
@@ -100,113 +91,103 @@
             transition: background-color 0.3s, transform 0.2s;
             margin: 10px 5px;
         }
-
         .button:hover {
             background-color: #c0392b;
             transform: scale(1.05);
         }
-
         .button:disabled {
             background-color: #95a5a6;
             cursor: not-allowed;
             transform: none;
         }
-
         .bingo-card-preview {
             margin: 20px auto;
             background: white;
             border-radius: 10px;
             padding: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             display: none;
             max-width: 300px;
         }
-
         .bingo-card-row {
             display: flex;
             justify-content: space-around;
             border-bottom: 1px solid #ddd;
         }
-
         .bingo-card-row:last-child {
             border-bottom: none;
         }
-
         .bingo-card-cell {
             width: 20%;
             text-align: center;
             padding: 8px 0;
             font-size: 0.9em;
         }
-
         .bingo-card-cell.free {
             color: #e74c3c;
             font-weight: bold;
         }
-
         h3 {
             margin: 10px 0;
             color: #e74c3c;
         }
     </style>
 </head>
-
 <body>
     <div class="container">
         <div class="header">
-            <div class="info">Wallet: <span id="walletAmount">$0</span></div>
+            <div class="info">Wallet: <span id="walletAmount">$0</span></div> 
             <div class="info">Active Game: <span id="activeGame">1</span></div>
-            <div class="info">Stake: <span id="stakedAmount">$0</span></div>
-        </div>
-        <div class="board-grid" id="boardNumberGrid">
+            <div class="info">Stake: <span id="stakedAmount">$0</span></div> 
+          </div>
+       <div class="board-grid" id="boardNumberGrid">
             {% for number in board_numbers %}
-            <div class="board-number" data-board="{{ number }}" onclick="selectBoardNumber(this, {{ number }})">{{
-                number }}</div>
+                <div class="board-number" data-board="{{ number }}" onclick="selectBoardNumber(this, {{ number }})">{{ number }}</div>
             {% endfor %}
         </div>
         <div id="bingoCardPreview" class="bingo-card-preview">
             <!-- Bingo card preview will be shown here -->
         </div>
-
+        
         <button class="button" id="startGameBtn" disabled>Start Game</button>
     </div>
     <script>
-        const bingoCards = {{ bingo_cards| safe }};
+        const bingoCards = {{ bingo_cards|safe }};
         let selectedBoardNumber = null;
-
+    
         function selectBoardNumber(element, number) {
-            document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
-            element.classList.add('selected');
-            selectedBoardNumber = number;
+    document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
+    element.classList.add('selected');
+    selectedBoardNumber = number;
 
-            const preview = document.getElementById("bingoCardPreview");
-            preview.innerHTML = '';
-            preview.style.display = 'block';
+    const preview = document.getElementById("bingoCardPreview");
+    preview.innerHTML = '';
+    preview.style.display = 'block';
 
-            const card = bingoCards[number];
+    const card = bingoCards[number];
 
-            // 🔹 Save to localStorage so board.html can use it
-            localStorage.setItem(`bingoCard_${number}`, JSON.stringify(card));
+    // 🔹 Save to localStorage so board.html can use it
+    localStorage.setItem(`bingoCard_${number}`, JSON.stringify(card));
 
-            card.forEach(row => {
-                const rowDiv = document.createElement("div");
-                rowDiv.className = "bingo-card-row";
-                row.forEach(cell => {
-                    const cellDiv = document.createElement("div");
-                    cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
-                    cellDiv.textContent = cell;
-                    rowDiv.appendChild(cellDiv);
-                });
-                preview.appendChild(rowDiv);
-            });
+    card.forEach(row => {
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "bingo-card-row";
+        row.forEach(cell => {
+            const cellDiv = document.createElement("div");
+            cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
+            cellDiv.textContent = cell;
+            rowDiv.appendChild(cellDiv);
+        });
+        preview.appendChild(rowDiv);
+    });
 
-            document.getElementById("startGameBtn").disabled = false;
-        }
+    document.getElementById("startGameBtn").disabled = false;
+}
 
-
+    
         document.getElementById("startGameBtn").addEventListener("click", () => {
             if (!selectedBoardNumber) return;
-
+        
             fetch(`/save_card/?board=${selectedBoardNumber}`)
                 .then(response => response.json())
                 .then(data => {
@@ -217,27 +198,18 @@
                     }
                 });
         });
-    </script>
-    <script>
-        function getQueryParams() {
-            const params = new URLSearchParams(window.location.search);
-            return {
-                userId: params.get("user_id"),
-                stake: params.get("stake"),
-                wallet: params.get("wallet"),
-            };
-        }
 
         window.onload = function () {
-            const { stake, wallet } = getQueryParams();
-            if (stake) {
-                document.getElementById("stakedAmount").innerText = `$${stake}`;
-            }
-            if (wallet) {
+            const tg = window.Telegram.WebApp;
+            const startParam = tg.initDataUnsafe?.start_param;
+    
+            if (startParam) {
+                const [user_id, stake, wallet] = startParam.split(":");
                 document.getElementById("walletAmount").innerText = `$${wallet}`;
+                document.getElementById("stakedAmount").innerText = `$${stake}`;
             }
         };
     </script>
+    
 </body>
-
 </html>

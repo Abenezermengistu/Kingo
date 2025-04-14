@@ -63,7 +63,7 @@ from .models import BingoBoard, GameSession, Player  # Import your models
 
 def board_view(request):
     board_number = int(request.GET.get('board'))
-    wallet = request.GET.get('wallet')
+    wallet = request.GET.get('wallet', 0)
     stake = int(request.GET.get('stake', 10))
 
     user_id = request.session.get('user_id')
@@ -100,3 +100,19 @@ def save_selected_bingo_card(request):
         request.session[f'bingo_card_{board_number}'] = selected_card
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'error'}, status=400)
+
+from django.http import JsonResponse
+from .telegram_bot import get_user_wallet  # now correctly imported
+
+def get_wallet_data(request):
+    user_id = request.GET.get("user_id")
+    if not user_id:
+        return JsonResponse({"error": "Missing user_id"}, status=400)
+
+    wallet = get_user_wallet(user_id)
+    stake = request.GET.get("stake", 0)
+
+    return JsonResponse({
+        "wallet": wallet["balance"],
+        "stake": stake
+    })

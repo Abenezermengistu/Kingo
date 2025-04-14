@@ -3,30 +3,32 @@ import random
 import string
 import telebot
 from telebot import types
+import logging
+from kingoapp.models import UserCustom
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from urllib.parse import urlencode
+
+from telegram.constants import ParseMode
+import random
+from telegram import WebAppInfo
 from django.conf import settings
 import asyncio  # Import asyncio here
 
-# Set the environment variable for Django settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kingo.settings')
 
-# Now import Django-related functions after the setup
 import django
 django.setup()  # Initialize Django here
 
 from kingoapp.reg_func import register_user  # Import after Django initialization
 
-# API Token for the Telegram Bot
 API_TOKEN = "8158124024:AAF5GBpzsm6hfKt2PYaigVaZlvhLQKtHyac"  # Replace with your actual token
 bot = telebot.TeleBot(API_TOKEN)
 
-# In-Memory Stores
 wallets = {}
 registered_users = set()
 
-# File path for the welcome image
 image_path = os.path.join(settings.BASE_DIR, 'kingoapp', 'static', 'images', 'kingo.png')
 
-# Check if the image exists and load it
 if os.path.exists(image_path):
     with open(image_path, 'rb') as f:
         WELCOME_IMAGE = f.read()
@@ -58,7 +60,6 @@ def get_user_wallet(telegram_user_id):
             "withdrawals": 0,
         }
 
-# === Main Menu ===
 def build_main_menu():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -72,7 +73,6 @@ def build_main_menu():
     )
     return markup
 
-# === Start Command ===
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.send_photo(
@@ -88,7 +88,6 @@ def start(message):
         reply_markup=build_main_menu()
     )
 
-# === Register Command ===
 @bot.message_handler(commands=['register'])
 def handle_register(message):
     chat_id = message.chat.id
@@ -142,7 +141,6 @@ def get_phone_number(message, first_name, last_name, telegram_username):
     else:
         bot.send_message(message.chat.id, f"❌ {msg_text}")
 
-# === Receive Phone Number ===
 @bot.message_handler(content_types=["contact"])
 def contact_handler(message):
     if message.contact.user_id != message.from_user.id:
@@ -166,64 +164,76 @@ def contact_handler(message):
         reply_markup=build_main_menu()
     )
 
-# === Callback Query Handler ===
 @bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
     user_id = call.from_user.id
+    telegram_username = call.from_user.username
 
-    if call.data != "register" and user_id not in registered_users:
+    if call.data == "register":
+        try:
+            user = UserCustom.objects.get(telegram_user_id=user_id)
+            bot.edit_message_text(f"✅ Welcome back, {telegram_username}!", call.message.chat.id, call.message.message_id)
+        except UserCustom.DoesNotExist:
+            handle_register(call.message)
+        return
+
+    # Check registration
+    try:
+        user = UserCustom.objects.get(telegram_user_id=user_id)
+    except UserCustom.DoesNotExist:
         bot.answer_callback_query(call.id, "You must register first.")
         bot.edit_message_text("🚫 Please register using /register", call.message.chat.id, call.message.message_id)
         return
 
-    if call.data == "register":
-        if user_id in registered_users:
-            bot.edit_message_text("✅ You are already registered!", call.message.chat.id, call.message.message_id)
-        else:
-            handle_register(call.message)  # Call the function directly for registration flow
 
-    elif call.data == "play":
-        play_menu = types.InlineKeyboardMarkup(row_width=2)
-        play_menu.add(
-            types.InlineKeyboardButton("💵 Play with $10", callback_data="play_10"),
-            types.InlineKeyboardButton("💵 Play with $20", callback_data="play_20"),
-            types.InlineKeyboardButton("💵 Play with $50", callback_data="play_50"),
-            types.InlineKeyboardButton("💵 Play with $100", callback_data="play_100"),
-            types.InlineKeyboardButton("🎯 Demo Game", callback_data="play_0"),
-            types.InlineKeyboardButton("🏠 Back to Menu", callback_data="main_menu")
-        )
-        bot.edit_message_text("Choose your stake amount:", call.message.chat.id, call.message.message_id, reply_markup=play_menu)
-
-    elif call.data.startswith("play_"):
-        amount = int(call.data.split("_")[1])
+    if call.data == "play":
         wallet = get_user_wallet(user_id)
-
-        if amount > 0 and wallet["balance"] < amount:
-            bot.edit_message_text(f"❌ Not enough balance to play with ${amount}.", call.message.chat.id, call.message.message_id)
+        if wallet is None:
+            bot.edit_message_text("🚫 Please register or deposit first.", call.message.chat.id, call.message.message_id)
             return
-
-        if amount > 0:
-            wallet["balance"] -= amount
-
-        launch_url = f"https://t.me/FitfusionEthiopiaBot/elite?user_id={user_id}&stake={amount}&wallet={wallet['balance']}"
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton("▶️ Launch Game", url=launch_url))
-        keyboard.add(types.InlineKeyboardButton("🏠 Back to Menu", callback_data="main_menu"))
-
+    
+        keyboard = InlineKeyboardMarkup(row_width=2)
+    
+        stake_buttons = []
+        for stake in [10, 20, 50, 100]:
+            query_params = urlencode({
+                "user_id": user_id,
+                "stake": stake,
+                "wallet": round(wallet["balance"], 2)
+            })
+            webapp_url = f"https://abcreed2123.pythonanywhere.com?{query_params}"
+            stake_buttons.append(InlineKeyboardButton(f"🎮 Play with ${stake}", web_app=WebAppInfo(url=webapp_url)))
+    
+        # Add stake buttons in 2-column layout
+        for i in range(0, len(stake_buttons), 2):
+            keyboard.add(*stake_buttons[i:i+2])
+    
+        # Add demo and back to menu buttons
+        demo_url = f"https://abcreed2123.pythonanywhere.com?{urlencode({'user_id': user_id, 'stake': 0})}"
+        keyboard.add(
+            InlineKeyboardButton("🧪 Try Demo", web_app=WebAppInfo(url=demo_url)),
+        )
+    
         bot.edit_message_text(
-            f"✅ Staked: ${amount}\n💼 Balance: ${wallet['balance']}\nTap below to play.",
-            call.message.chat.id,
-            call.message.message_id,
+            "💵 Choose a stake to launch the game:",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
             reply_markup=keyboard
         )
-
+    elif call.data == "main_menu":
+        bot.edit_message_text(
+            "🏠 *Main Menu* - Choose an option below:",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=build_main_menu(),
+            parse_mode="Markdown"
+        )
     elif call.data == "check_balance":
         wallet = get_user_wallet(user_id)
-    
         if wallet is None:
             bot.answer_callback_query(call.id, "⚠️ You're not registered yet.")
             return
-    
+
         msg = (
             f"💼 *Your Wallet:*\n"
             f"Balance: ${wallet['balance']:.2f}\n"
@@ -234,7 +244,6 @@ def handle_query(call):
         )
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
 
-
     elif call.data == "deposit":
         msg = (
             "💳 *Deposit Instructions:*\n"
@@ -243,7 +252,6 @@ def handle_query(call):
             "3. We'll update your balance shortly."
         )
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
-
     elif call.data == "contact_support":
         bot.edit_message_text("🛠️ Contact @KingoSupport for help.", call.message.chat.id, call.message.message_id)
 
