@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bingo Game</title>
     <style>
+     
+    .board-number.full {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #ffffff;
@@ -154,60 +161,88 @@
     <script>
         const bingoCards = {{ bingo_cards|safe }};
         let selectedBoardNumber = null;
+        let currentUserId = null;
+        let currentStake = 0;
+        let currentWallet = 0;
     
         function selectBoardNumber(element, number) {
-    document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
-    element.classList.add('selected');
-    selectedBoardNumber = number;
-
-    const preview = document.getElementById("bingoCardPreview");
-    preview.innerHTML = '';
-    preview.style.display = 'block';
-
-    const card = bingoCards[number];
-
-    // 🔹 Save to localStorage so board.html can use it
-    localStorage.setItem(`bingoCard_${number}`, JSON.stringify(card));
-
-    card.forEach(row => {
-        const rowDiv = document.createElement("div");
-        rowDiv.className = "bingo-card-row";
-        row.forEach(cell => {
-            const cellDiv = document.createElement("div");
-            cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
-            cellDiv.textContent = cell;
-            rowDiv.appendChild(cellDiv);
-        });
-        preview.appendChild(rowDiv);
-    });
-
-    document.getElementById("startGameBtn").disabled = false;
-}
-
+            // Prevent selecting full boards
+            if (element.classList.contains("full")) return;
+    
+            document.querySelectorAll('.board-number').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedBoardNumber = number;
+    
+            const preview = document.getElementById("bingoCardPreview");
+            preview.innerHTML = '';
+            preview.style.display = 'block';
+    
+            const card = bingoCards[number];
+            localStorage.setItem(`bingoCard_${number}`, JSON.stringify(card));
+    
+            card.forEach(row => {
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "bingo-card-row";
+                row.forEach(cell => {
+                    const cellDiv = document.createElement("div");
+                    cellDiv.className = "bingo-card-cell" + (cell === 'FREE' ? " free" : "");
+                    cellDiv.textContent = cell;
+                    rowDiv.appendChild(cellDiv);
+                });
+                preview.appendChild(rowDiv);
+            });
+    
+            document.getElementById("startGameBtn").disabled = false;
+        }
     
         document.getElementById("startGameBtn").addEventListener("click", () => {
             if (!selectedBoardNumber) return;
-        
+    
             fetch(`/save_card/?board=${selectedBoardNumber}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        window.location.href = `/board/?board=${selectedBoardNumber}&wallet={{ wallet }}&stake={{ stake }}&user_id={{ user_id }}`;
+                        window.location.href = `/board/?board=${selectedBoardNumber}&wallet=${currentWallet}&stake=${currentStake}&user_id=${currentUserId}`;
                     } else {
                         alert("Failed to start game. Try again.");
                     }
                 });
         });
-
+    
         window.onload = function () {
             const tg = window.Telegram.WebApp;
             const startParam = tg.initDataUnsafe?.start_param;
     
             if (startParam) {
                 const [user_id, stake, wallet] = startParam.split(":");
+                currentUserId = user_id;
+                currentStake = stake;
+                currentWallet = wallet;
+    
                 document.getElementById("walletAmount").innerText = `$${wallet}`;
                 document.getElementById("stakedAmount").innerText = `$${stake}`;
             }
+    
+            // 🔹 Fetch live board stats
+            fetch("/api/board-stats/")
+                .then(res => res.json())
+                .then(data => {
+                    const boardDivs = document.querySelectorAll(".board-number");
+                    boardDivs.forEach(div => {
+                        const boardNum = div.getAttribute("data-board");
+                        const boardStats = data[boardNum];
+    
+                        if (boardStats && boardStats.players >= 1) {
+                            div.classList.add("full");
+                            div.setAttribute("title", "Full (10 players)");
+                            div.style.pointerEvents = "none";
+                            div.style.opacity = "0.5";
+                        }
+                    });
+    
+                    document.getElementById("activeGame").innerText = Object.values(data).filter(stat => stat.players > 0).length;
+                })
+                .catch(err => console.error("Failed to load board stats:", err));
         };
     </script>
     

@@ -4,7 +4,7 @@ from .models import UserCustom, BingoBoard, Player, GameSession
 
 class CustomUserAdmin(UserAdmin):
     model = UserCustom
-    list_display = ("username", "first_name", "telegram_user_id", "telegram_username", "last_name", "phone", "joined_at", "balance", "wins", "losses", "is_staff")
+    list_display = ("username", "first_name", "telegram_user_id", "telegram_username", "last_name", "phone", "joined_at", "balance", "wins", "losses", "withdrawals", "is_staff")
     fieldsets = UserAdmin.fieldsets + (
         ("Bingo Stats", {"fields": ("phone", "balance", "wins", "losses")}),
     )

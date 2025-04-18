@@ -15,6 +15,7 @@ from django.conf import settings
 import asyncio  # Import asyncio here
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'kingo.settings')
+user_data = {}  # To store temporary data per user during withdrawal
 
 import django
 django.setup()  # Initialize Django here
@@ -67,9 +68,10 @@ def build_main_menu():
         types.InlineKeyboardButton("📝 Register", callback_data="register"),
         types.InlineKeyboardButton("💰 Check Balance", callback_data="check_balance"),
         types.InlineKeyboardButton("🏦 Deposit", callback_data="deposit"),
-        types.InlineKeyboardButton("🛠️ Contact Support", callback_data="contact_support"),
+        types.InlineKeyboardButton("🛠 Contact Support", callback_data="contact_support"),
         types.InlineKeyboardButton("📘 Instruction", callback_data="instruction"),
-        types.InlineKeyboardButton("👥 Invite Friends", callback_data="invite")
+        types.InlineKeyboardButton("👥 Invite Friends", callback_data="invite"),
+        types.InlineKeyboardButton("➕ More", callback_data="more")
     )
     return markup
 
@@ -177,7 +179,7 @@ def handle_query(call):
             handle_register(call.message)
         return
 
-    # Check registration
+    # Ensure user is registered
     try:
         user = UserCustom.objects.get(telegram_user_id=user_id)
     except UserCustom.DoesNotExist:
@@ -185,41 +187,50 @@ def handle_query(call):
         bot.edit_message_text("🚫 Please register using /register", call.message.chat.id, call.message.message_id)
         return
 
-
     if call.data == "play":
         wallet = get_user_wallet(user_id)
         if wallet is None:
             bot.edit_message_text("🚫 Please register or deposit first.", call.message.chat.id, call.message.message_id)
             return
-    
+
+        available_balance = round(wallet["balance"], 2)
         keyboard = InlineKeyboardMarkup(row_width=2)
-    
         stake_buttons = []
+
         for stake in [10, 20, 50, 100]:
-            query_params = urlencode({
-                "user_id": user_id,
-                "stake": stake,
-                "wallet": round(wallet["balance"], 2)
-            })
-            webapp_url = f"https://abcreed2123.pythonanywhere.com?{query_params}"
-            stake_buttons.append(InlineKeyboardButton(f"🎮 Play with ${stake}", web_app=WebAppInfo(url=webapp_url)))
-    
-        # Add stake buttons in 2-column layout
+            if available_balance >= stake:
+                query_params = urlencode({
+                    "user_id": user_id,
+                    "stake": stake,
+                    "wallet": available_balance
+                })
+                webapp_url = f"https://abcreed2123.pythonanywhere.com?{query_params}"
+                stake_buttons.append(InlineKeyboardButton(f"🎮 Play with ${stake}", web_app=WebAppInfo(url=webapp_url)))
+
         for i in range(0, len(stake_buttons), 2):
             keyboard.add(*stake_buttons[i:i+2])
-    
-        # Add demo and back to menu buttons
+
         demo_url = f"https://abcreed2123.pythonanywhere.com?{urlencode({'user_id': user_id, 'stake': 0})}"
         keyboard.add(
             InlineKeyboardButton("🧪 Try Demo", web_app=WebAppInfo(url=demo_url)),
         )
-    
+
+        if not stake_buttons:
+            message = (
+                f"😢 You don't have enough balance to play.\n"
+                f"💸 Current Balance: ${available_balance:.2f}\n"
+                f"🔋 Top up and come back to play!"
+            )
+            bot.edit_message_text(message, chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+
         bot.edit_message_text(
             "💵 Choose a stake to launch the game:",
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             reply_markup=keyboard
         )
+
     elif call.data == "main_menu":
         bot.edit_message_text(
             "🏠 *Main Menu* - Choose an option below:",
@@ -228,19 +239,23 @@ def handle_query(call):
             reply_markup=build_main_menu(),
             parse_mode="Markdown"
         )
+
     elif call.data == "check_balance":
         wallet = get_user_wallet(user_id)
         if wallet is None:
             bot.answer_callback_query(call.id, "⚠️ You're not registered yet.")
             return
 
+        # Retrieve total withdrawals from the wallet
+        total_withdrawals = wallet.get('withdrawals', 0)
+
         msg = (
             f"💼 *Your Wallet:*\n"
             f"Balance: ${wallet['balance']:.2f}\n"
             f"Wins: {wallet['wins']}\n"
             f"Losses: {wallet['losses']}\n"
-            f"Deposits: ${wallet['deposits']}\n"
-            f"Withdrawals: ${wallet['withdrawals']}"
+            f"Deposits: ${wallet['deposits']:.2f}\n"
+            f"Withdrawals: ${total_withdrawals:.2f}"  # Display total withdrawals
         )
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
 
@@ -252,6 +267,7 @@ def handle_query(call):
             "3. We'll update your balance shortly."
         )
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
     elif call.data == "contact_support":
         bot.edit_message_text("🛠️ Contact @KingoSupport for help.", call.message.chat.id, call.message.message_id)
 
@@ -271,6 +287,250 @@ def handle_query(call):
             call.message.message_id
         )
 
+    elif call.data == "withdraw":
+        msg = "💰 Please enter the amount you want to withdraw:"
+        bot.send_message(call.message.chat.id, msg)
+        bot.register_next_step_handler(call.message, handle_withdraw_amount, user)
+
+    elif call.data == "more":
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🏧 Withdraw", callback_data="withdraw"))
+        bot.edit_message_text("🔍 More options available:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+    elif call.data == "bank_telebirr" or call.data == "bank_cbe":
+        bank = "Telebirr" if call.data == "bank_telebirr" else "CBE Birr"
+        if call.from_user.id not in user_data:
+            user_data[call.from_user.id] = {}
+        user_data[call.from_user.id]["bank"] = bank
+        bot.send_message(call.message.chat.id, f"👤 Please enter account holder name for {bank}:")
+        bot.register_next_step_handler(call.message, handle_account_name)
+
+    elif call.data == "confirm_withdraw":
+        confirm_or_cancel_withdraw(call, confirm=True)
+
+    elif call.data == "cancel_withdraw":
+        confirm_or_cancel_withdraw(call, confirm=False)
+
+    elif call.data.startswith("withdraw_done:"):
+        # Extract user_id and amount from callback_data
+        _, target_user_id, withdrawn_amount = call.data.split(":")
+        target_user_id = int(target_user_id)
+        withdrawn_amount = float(withdrawn_amount)  # Convert to float
+
+        # Get the user's wallet again to show updated data
+        wallet = get_user_wallet(target_user_id)
+        if wallet is None:
+            bot.answer_callback_query(call.id, "⚠️ User not found.")
+            return
+
+        # Send confirmation to user
+        bot.send_message(
+            target_user_id,
+            "✅ Please check your account. It has been credited."
+        )
+
+        # Send updated wallet info to admin (optional)
+        msg = (
+            f"✅ Withdrawal Completed!\n\n"
+            f"💼 *User Wallet:*\n"
+            f"Balance: ${wallet['balance']:.2f}\n"
+            f"Wins: {wallet['wins']}\n"
+            f"Losses: {wallet['losses']}\n"
+            f"Deposits: ${wallet['deposits']:.2f}\n"
+            f"Withdrawals: ${wallet['withdrawals']:.2f}\n"
+            f"💵 Current Withdrawn Amount: ${withdrawn_amount:.2f}"
+        )
+        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+        
+def handle_withdraw_amount(message, user):
+    try:
+        amount = float(message.text.strip())
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+
+        # Check if user has sufficient balance
+        wallet = get_user_wallet(user.telegram_user_id)
+        if amount > wallet['balance']:
+            bot.send_message(message.chat.id, "❌ Insufficient balance for this withdrawal. Please enter a different amount:")
+            bot.register_next_step_handler(message, handle_withdraw_amount, user)
+            return
+
+        # Store amount in user_data
+        if message.from_user.id not in user_data:
+            user_data[message.from_user.id] = {}
+        user_data[message.from_user.id]['amount'] = amount
+
+        # Ask for bank selection
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("Telebirr", callback_data="bank_telebirr"),
+            InlineKeyboardButton("CBE Birr", callback_data="bank_cbe"),
+            InlineKeyboardButton("Cancel", callback_data="cancel_withdraw")
+        )
+        bot.send_message(
+            message.chat.id,
+            f"💵 Withdrawal Amount: ${amount:.2f}\n"
+            "🏦 Select payment method:",
+            reply_markup=markup
+        )
+
+    except ValueError:
+        bot.send_message(message.chat.id, "❌ Invalid amount. Please enter a valid positive number:")
+        bot.register_next_step_handler(message, handle_withdraw_amount, user)
+        return
+
+def handle_account_name(message):
+    user_id = message.from_user.id
+    account_name = message.text.strip()
+    
+    if not account_name or len(account_name) < 3:
+        bot.send_message(message.chat.id, "❌ Invalid account name. Please enter a valid name.")
+        bot.register_next_step_handler(message, handle_account_name)
+        return
+        
+    user_data[user_id]['account_name'] = account_name
+    
+    # Ask for account number
+    bot.send_message(message.chat.id, "🔢 Please enter your account number:")
+    bot.register_next_step_handler(message, handle_account_number)
+    return
+
+def handle_account_number(message):
+    user_id = message.from_user.id
+    account_number = message.text.strip()
+
+    # Validate that user_data contains the required keys
+    if user_id not in user_data or 'amount' not in user_data[user_id]:
+        bot.send_message(message.chat.id, "❌ Withdrawal session expired. Please start over.")
+        return
+
+    bank = user_data.get(user_id, {}).get("bank")
+
+    if bank == "Telebirr":
+        # Expecting a valid Ethiopian phone number (typically starts with 09 and is 10 digits)
+        if not account_number.isdigit() or not account_number.startswith("09") or len(account_number) != 10:
+            bot.send_message(message.chat.id, "❌ Invalid phone number. Please enter a valid 10-digit Telebirr number (e.g., 09XXXXXXXX).")
+            bot.register_next_step_handler(message, handle_account_number)
+            return
+    elif bank == "CBE Birr":
+        # CBE account numbers are typically at least 13 digits
+        if not account_number.isdigit() or len(account_number) < 13:
+            bot.send_message(message.chat.id, "❌ Invalid CBE account number. Please enter a valid numeric bank account number.")
+            bot.register_next_step_handler(message, handle_account_number)
+            return
+    else:
+        bot.send_message(message.chat.id, "⚠️ Bank type not recognized. Please start again.")
+        return
+
+    # Store the account number in user_data
+    user_data[user_id]['account_number'] = account_number
+
+    # Show confirmation
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("✅ Confirm Withdrawal", callback_data="confirm_withdraw"),
+        InlineKeyboardButton("❌ Cancel", callback_data="cancel_withdraw")
+    )
+
+    details = user_data[user_id]
+    bot.send_message(
+        message.chat.id,
+        f"📋 Withdrawal Details:\n"
+        f"💵 Amount: ${details['amount']:.2f}\n"
+        f"🏦 Bank: {details['bank']}\n"
+        f"👤 Account Name: {details['account_name']}\n"
+        f"🔢 Account Number: {details['account_number']}\n\n"
+        "Please confirm your withdrawal request:",
+        reply_markup=markup
+    )
+
+from decimal import Decimal
+from kingoapp.models import Withdrawal
+from django.utils.timezone import now
+
+ADMIN_CHAT_ID = 1487965128 
+
+def confirm_or_cancel_withdraw(call, confirm):
+    user_id = call.from_user.id
+
+    if confirm:
+        details = user_data.get(user_id, {})
+        if not details:
+            bot.edit_message_text(
+                "❌ Withdrawal session expired. Please start over.",
+                call.message.chat.id,
+                call.message.message_id
+            )
+            return
+
+        try:
+            user = UserCustom.objects.get(telegram_user_id=user_id)
+        except UserCustom.DoesNotExist:
+            bot.send_message(call.message.chat.id, "❌ User not registered.")
+            return
+
+        amount = Decimal(str(details.get('amount', 0)))
+
+        if user.balance >= amount > 0:
+            # Update user balance and withdrawals
+            user.balance -= amount
+            user.withdrawals += amount  # Increment the total withdrawals
+            user.save()  # Save the changes to the database
+
+            # Save the withdrawal to the DB
+            Withdrawal.objects.create(
+                user=user,
+                amount=amount,
+                bank=details.get('bank'),
+                account_name=details.get('account_name'),
+                account_number=details.get('account_number'),
+                created_at=now()
+            )
+
+            # Notify user
+            bot.edit_message_text(
+                "✅ Withdrawal request submitted!\n"
+                "⏳ Processing time: within 24 hours\n"
+                "📩 You'll receive a confirmation when completed.",
+                call.message.chat.id,
+                call.message.message_id
+            )
+
+            # Admin button to mark withdrawal as done
+            done_button = InlineKeyboardMarkup()
+            done_button.add(
+                InlineKeyboardButton(
+                    text="✅ Done",
+                    callback_data=f"withdraw_done:{user_id}:{float(amount):.2f}"  # Include the amount in the callback_data
+                )
+            )
+
+            # Notify admin
+            user_data[user_id]['amount'] = float(amount)  # Ensure the amount is stored correctly
+            bot.send_message(
+                ADMIN_CHAT_ID,
+                f"📤 *New Withdrawal Request:*\n"
+                f"👤 User: @{call.from_user.username or 'N/A'} (`{call.from_user.id}`)\n"
+                f"💵 Amount: `${amount:.2f}`\n"
+                f"🏦 Bank: {details.get('bank')}\n"
+                f"👤 Name: {details.get('account_name')}\n"
+                f"🔢 Account: {details.get('account_number')}",
+                parse_mode="Markdown",
+                reply_markup=done_button
+            )
+
+        else:
+            bot.send_message(call.message.chat.id, "❌ Insufficient balance or invalid amount.")
+    else:
+        bot.edit_message_text(
+            "❌ Withdrawal cancelled.",
+            call.message.chat.id,
+            call.message.message_id
+        )
+
+    # Clear session data
+    user_data.pop(user_id, None)
+    
 # === Run the Bot ===
 async def run_bot():
     while True:

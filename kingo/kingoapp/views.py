@@ -74,18 +74,22 @@ def board_view(request):
     board, _ = BingoBoard.objects.get_or_create(board_number=board_number)
     game_session, created = GameSession.objects.get_or_create(board=board, defaults={'bet_amount': stake})
 
-    Player.objects.get_or_create(user_identifier=user_id, board=board)  # Use user_identifier!
+    # Create or retrieve player
+    Player.objects.get_or_create(user_identifier=user_id, board=board)
 
+    # Get bingo card from session
     bingo_card = request.session.get(f'bingo_card_{board_number}')
 
     context = {
-        'board': board_number,
+        'board': board,                  # ✅ Needed for board.id in template
+        'board_number': board_number,    # ✅ Needed for UI display
         'wallet': wallet,
         'stake': stake,
-        'user_id': user_id,  # Keep sending this for client-side logic
+        'user_id': user_id,
         'bingo_card': bingo_card,
-        'game_id': game_session.id
+        'game_id': game_session.id       # You can also pass game ID for JS if needed
     }
+
     return render(request, 'board.html', context)
 
 # views.py
@@ -116,3 +120,69 @@ def get_wallet_data(request):
         "wallet": wallet["balance"],
         "stake": stake
     })
+
+from django.http import JsonResponse
+from .models import Player, GameSession, BingoBoard
+
+def get_game_stats(request, board_number):
+    try:
+        board = BingoBoard.objects.get(board_number=board_number)
+        game_session = GameSession.objects.get(board=board)
+        stake = game_session.bet_amount
+        player_count = Player.objects.filter(board=board).count()
+        derash = stake * player_count
+
+        return JsonResponse({
+            "stake": stake,
+            "players": player_count,
+            "derash": derash
+        })
+    except BingoBoard.DoesNotExist:
+        return JsonResponse({"error": "Board not found"}, status=404)
+    except GameSession.DoesNotExist:
+        return JsonResponse({"error": "Game session not found"}, status=404)
+
+from django.http import JsonResponse
+from .models import Player, BingoBoard
+
+def board_stats_api(request):
+    board_data = {}
+
+    boards = BingoBoard.objects.all()
+
+    for board in boards:
+        player_count = board.players.count()  # thanks to related_name="players"
+        board_data[str(board.board_number)] = {
+            "players": player_count
+        }
+
+    return JsonResponse(board_data)
+
+from django.http import JsonResponse
+from .models import GameSession
+import random
+
+def call_number_api(request):
+    board_id = request.GET.get("board_id")
+    try:
+        game = GameSession.objects.get(board_id=board_id)
+    except GameSession.DoesNotExist:
+        return JsonResponse({'error': 'Game not found'}, status=404)
+
+    called = game.called_numbers
+
+    if len(called) >= 75:
+        return JsonResponse({'message': 'All numbers called', 'called_numbers': called})
+
+    all_numbers = set(range(1, 76))
+    remaining = list(all_numbers - set(called))
+
+    # Generate next number and append
+    number = random.choice(remaining)
+    called.append(number)
+    game.called_numbers = called
+    game.save()
+
+    return JsonResponse({'number': number, 'called_numbers': called})
+
+

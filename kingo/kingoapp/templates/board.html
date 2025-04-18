@@ -71,7 +71,7 @@
 
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(5, 0.5fr);
+            grid-template-columns: repeat(4, 0.5fr);
             gap: 4px;
             margin-bottom: 10px;
         }
@@ -308,14 +308,13 @@
 <body>
     <div class="container">
         <div class="header">Game ID: <span id="gameId">{{ game_id }}</span></div>
-
         <div class="stats-container">
-            <div class="stat-item">Derash<br>-</div>
-            <div class="stat-item">Bonus<br>-</div>
-            <div class="stat-item">Players<br>-</div>
-            <div class="stat-item">Bet<br>{{ stake }}</div>
+            <div class="stat-item">Derash<br><span id="derashAmount">-</span></div>
+            <div class="stat-item">Players<br><span id="playerCount">-</span></div>
+            <div class="stat-item">Stake<br><span id="stakeAmount">0</span></div>
             <div class="stat-item">Call<br>0</div>
         </div>
+
 
         <div class="main">
             <!-- LEFT COLUMN -->
@@ -450,14 +449,14 @@
                         <div class="column-header column-n">N</div>
                         <div class="column-header column-g">G</div>
                         <div class="column-header column-o">O</div>
-                    
+
                         {% for row in bingo_card %}
-                            {% for num in row %}
-                                <div class="grid-cell {% if num == 'FREE' %}free-cell{% endif %}">{{ num }}</div>
-                            {% endfor %}
+                        {% for num in row %}
+                        <div class="grid-cell {% if num == 'FREE' %}free-cell{% endif %}">{{ num }}</div>
+                        {% endfor %}
                         {% endfor %}
                     </div>
-                    
+
                     <div class="board-number-display" id="boardNumberDisplay">
                         Board number: {{ board }}
                     </div>
@@ -472,36 +471,53 @@
             </div>
         </div>
     </div>
-    &rsqb;
+    
     <script>
+        let realUserId = null;
+        let realStake = 0;
+        let realWallet = 0;
+    
+        window.onload = function () {
+            const tg = window.Telegram.WebApp;
+            const startParam = tg.initDataUnsafe?.start_param;
+    
+            if (startParam) {
+                const [user_id, stake, wallet] = startParam.split(":");
+                realUserId = user_id;
+                realStake = parseFloat(stake);
+                realWallet = parseFloat(wallet);
+    
+                // Display on index.html
+                const walletElem = document.getElementById("walletAmount");
+                const stakeElem = document.getElementById("stakedAmount");
+                if (walletElem) walletElem.innerText = `$${realWallet}`;
+                if (stakeElem) stakeElem.innerText = `$${realStake}`;
+            }
+        };
+    
         document.addEventListener("DOMContentLoaded", () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const boardNumber = urlParams.get("board") || "unknown";
-            const userId = urlParams.get("user_id") || null;
-            const stakedAmount = urlParams.get("stakedAmount");
-            const betAmount = parseInt(localStorage.getItem("betAmount")) || 10;
+            const boardNumber = urlParams.get("board") || urlParams.get("board_number") || "unknown";
     
             const bingoGrid = document.getElementById("bingoGrid");
             const boardDisplay = document.getElementById("boardNumberDisplay");
             const gameInfo = document.querySelector(".game-info");
             const fullGrid = document.querySelectorAll(".full-grid .grid-number");
     
-            const derashStat = document.querySelector(".stat-item:nth-child(1)");
-            const bonusStat = document.querySelector(".stat-item:nth-child(2)");
-            const playersStat = document.querySelector(".stat-item:nth-child(3)");
-            const betStat = document.querySelector(".stat-item:nth-child(4)");
-            const callStat = document.querySelector(".stat-item:nth-child(5)");
+            const derashStat = document.getElementById("derashAmount");
+            const playersStat = document.getElementById("playerCount");
+            const stakeStat = document.getElementById("stakeAmount");
     
-            const stakedAmountElement = document.getElementById("stakedAmount");
-            if (stakedAmountElement) {
-                stakedAmountElement.innerText = `$${stakedAmount}`;
+            // Use realStake if available
+            if (stakeStat) {
+                stakeStat.innerText = `$${realStake || 0}`;
             }
     
             const playersInGame = new Set();
             const calledNumbers = new Set();
     
-            if (userId) {
-                playersInGame.add(userId);
+            if (realUserId) {
+                playersInGame.add(realUserId);
             }
     
             const callBall = document.createElement("span");
@@ -517,9 +533,11 @@
             updateCountdown();
     
             const callInterval = setInterval(callNumber, 5000);
+    
             const playerJoinInterval = setInterval(() => {
                 if (playersInGame.size < 3) {
-                    playersInGame.add(Math.floor(Math.random() * 10000));
+                    const fakeId = "bot_" + Math.floor(Math.random() * 100000);
+                    playersInGame.add(fakeId);
                     updateCountdown();
                     updateStats();
                 } else {
@@ -534,10 +552,21 @@
             }
     
             function updateStats() {
-                derashStat.innerHTML = `Derash<br>$${playersInGame.size * betAmount}`;
-                playersStat.innerHTML = `Players<br>${playersInGame.size}`;
-                betStat.innerHTML = `Bet<br>$${betAmount}`;
-                callStat.innerHTML = `Call<br>${calledNumbers.size}`;
+                fetch(`/api/stats/${boardNumber}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.error) {
+                            console.error(data.error);
+                            return;
+                        }
+    
+                        if (stakeStat) stakeStat.innerText = `$${data.stake}`;
+                        if (playersStat) playersStat.innerText = data.players;
+                        if (derashStat) derashStat.innerText = `$${data.derash}`;
+                    })
+                    .catch(err => {
+                        console.error("Failed to load game stats:", err);
+                    });
             }
     
             function callNumber() {
@@ -555,7 +584,7 @@
                 const callText = `${letters[column]}${number}`;
                 callBall.textContent = callText;
     
-                // Mark number in the full grid, not user card
+                // Mark in full grid
                 fullGrid.forEach(cell => {
                     if (parseInt(cell.textContent) === number) {
                         cell.classList.add("marked");
@@ -606,10 +635,13 @@
                     });
                 });
             }
+    
+            // Optional: Refresh game stats every 5 seconds
+            setInterval(updateStats, 5000);
         });
     </script>
     
-  
+
 
 </body>
 

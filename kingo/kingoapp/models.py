@@ -9,6 +9,7 @@ class UserCustom(AbstractUser):
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)  # Default balance
     wins = models.PositiveIntegerField(default=0)
     losses = models.PositiveIntegerField(default=0)
+    withdrawals = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)  # Add this field
 
     def __str__(self):
         return f"{self.username} ({self.first_name} {self.last_name})"
@@ -25,9 +26,9 @@ import uuid
 class Player(models.Model):
     user_identifier = models.CharField(
         max_length=255,
-        default=uuid.uuid4,  # Automatically generate a UUID for new records
-        unique=False  # Keep as False unless you're sure it should be unique globally
-    )
+        default=uuid.uuid4, 
+        unique=False 
+        )
     board = models.ForeignKey(BingoBoard, on_delete=models.CASCADE, related_name="players")
     joined_at = models.DateTimeField(auto_now_add=True)
 
@@ -42,3 +43,14 @@ class GameSession(models.Model):
 
     def __str__(self):
         return f"Game on Board {self.board.board_number}"
+
+class Withdrawal(models.Model):
+    user = models.ForeignKey(UserCustom, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    bank = models.CharField(max_length=100)
+    account_name = models.CharField(max_length=100)
+    account_number = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} withdrew ${self.amount}"
